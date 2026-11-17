@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "nexora-techstore",
+  "main": "./worker/index.ts",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    // Hashed build assets are served straight from the edge; everything else (HTML routes, /api, /sdk) runs the Worker.
+    "run_worker_first": ["/*", "!/assets/*", "!/favicon.svg"]
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "WORKSPACE", "class_name": "WorkspaceStore" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["WorkspaceStore"] }],
+  "routes": [
+    { "pattern": "techstore.win", "custom_domain": true },
+    { "pattern": "www.techstore.win", "custom_domain": true }
+  ],
+  "workers_dev": true,
+  "observability": { "enabled": true }
+}
