@@ -31,9 +31,7 @@ export default function OrderDetail() {
     const key = `${order.id}:${order.status}:${order.completedStages}`;
     if (reported.current === key) return;
     reported.current = key;
-    rum.tracepoint("orderStatus", `${order.status}:${order.currentMilestone}`);
-    if (order.status === "completed") rum.conversion("order_completed", order.totals.total);
-    if (order.status === "stalled") rum.tracepoint("orderStall", order.stall?.code ?? "unknown");
+    rum.tracepoint("orderid", order.id);
   }, [order]);
 
   if (res.state === "loading" || (res.state === "idle" && !order)) {
@@ -76,7 +74,7 @@ export default function OrderDetail() {
       {placed && (
         <div className="mb-8">
           <Banner tone="success" title="Thank you, your order is confirmed!" testId="order-confirmation">
-            We've emailed a confirmation to {order.customer.email}. Keep this page open to watch your order progress live.
+            We've emailed a confirmation to <span className="rr-mask">{order.customer.email}</span>. Keep this page open to watch your order progress live.
           </Banner>
         </div>
       )}
@@ -167,7 +165,7 @@ export default function OrderDetail() {
               </div>
             </dl>
           </div>
-          <div className="card p-6 text-sm">
+          <div className="card rr-mask p-6 text-sm" data-rum-mask="customer-details">
             <h2 className="font-semibold">Details</h2>
             <dl className="mt-3 space-y-2 text-slate-600">
               <div>

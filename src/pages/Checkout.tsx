@@ -68,7 +68,7 @@ export default function Checkout() {
       cvc: "123",
     });
     setErrors({});
-    rum.tracepoint("checkoutPrefill", "demo-customer");
+    rum.tracepoint("checkoutstep", "prefill");
   }
 
   function clientValidate(): Record<string, string> {
@@ -103,13 +103,16 @@ export default function Checkout() {
     setFailure(undefined);
     setErrors({});
     rum.mark("checkout:submit");
-    rum.tracepoint("checkoutStep", "submit");
+    rum.tracepoint("checkoutstep", "submit");
+    const submitStarted = performance.now();
     try {
       const { order } = await api<{ order: OrderView }>("/api/orders", { method: "POST", body: input });
       rum.mark("checkout:success");
       rum.measure("checkout-submit", "checkout:submit", "checkout:success");
-      rum.tracepoint("orderId", order.id);
-      rum.conversion("order_placed", order.totals.total);
+      rum.indicator("checkoutms", performance.now() - submitStarted);
+      rum.tracepoint("checkoutstep", "success");
+      rum.tracepoint("orderid", order.id);
+      rum.conversion(order.totals.total, order.lines.reduce((n, l) => n + l.qty, 0));
       setState("success");
       rememberOrder(order.id);
       clearBasket();
@@ -121,7 +124,9 @@ export default function Checkout() {
       navigate(`/orders/${order.id}?placed=1`);
     } catch (err) {
       const e = err instanceof ApiError ? err : new ApiError(0, "UNKNOWN", "Something went wrong placing your order.");
-      rum.tracepoint("checkoutError", `${e.status} ${e.code}`);
+      rum.indicator("checkoutms", performance.now() - submitStarted);
+      rum.tracepoint("checkoutstep", "failed");
+      rum.tracepoint("paymenterror", `${e.status} ${e.code}`);
       setErrors(e.fields ?? {});
       setFailure({ code: e.code, message: e.message, status: e.status });
       setState("error");

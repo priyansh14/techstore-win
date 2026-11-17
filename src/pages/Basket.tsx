@@ -4,7 +4,6 @@ import { priceBasket, PROMO_CODES } from "../../shared/engine";
 import { ProductIllustration } from "../components/ProductIllustration";
 import { Icon, PageHeader, Price } from "../components/ui";
 import { money } from "../lib/format";
-import { rum } from "../lib/rumBridge";
 import { useApp, useConfig } from "../state/AppContext";
 
 const PROMO_KEY = "nexora:promo";
@@ -41,7 +40,6 @@ export default function Basket() {
     e.preventDefault();
     const code = promoInput.trim().toUpperCase();
     if (!code) return;
-    rum.tracepoint("promoCode", code);
     if (code === "BROKEN50") {
       // Intentional defect for demos: an uncaught TypeError from a malformed promo payload,
       // so client-side error capture and session replay have something real to show.
@@ -54,7 +52,6 @@ export default function Basket() {
       setPromo(code);
       savePromo(code);
       setPromoMsg({ tone: "ok", text: `${code} applied: ${Math.round(PROMO_CODES[code] * 100)}% off your order.` });
-      rum.tracepoint("promoApplied", code);
     } else {
       setPromoMsg({ tone: "err", text: `"${code}" isn't a valid promo code.` });
     }

@@ -17,6 +17,17 @@
          to window.RProfiler automatically once the snippet has loaded.
          ================================================================ -->
     <!-- RUM:BEGIN -->
+    <script defer src="https://g.3gl.net/jp/16084/latest/InitialLoadScript.js"></script>
+    <!-- Send the RUM beacon on pagehide instead of unload/beforeunload (more reliable on mobile and bfcache). -->
+    <script>
+      if (window.RProfiler) {
+        window.RProfiler.usePageHide();
+      } else {
+        window.addEventListener("GlimpseLoaded", function () {
+          window.RProfiler.usePageHide();
+        });
+      }
+    </script>
     <!-- RUM:END -->
   </head>
   <body>

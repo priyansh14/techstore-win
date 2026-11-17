@@ -6,7 +6,6 @@ import { ProductIllustration } from "../components/ProductIllustration";
 import { Banner, Icon, Price, Stars } from "../components/ui";
 import { api, ApiError } from "../lib/api";
 import { cx, money } from "../lib/format";
-import { rum } from "../lib/rumBridge";
 import { useAsync } from "../lib/useAsync";
 import { useApp, useConfig } from "../state/AppContext";
 
@@ -67,8 +66,6 @@ export default function Product() {
 
   function add() {
     addToBasket({ slug: product!.slug, variantId: variant.id, addOnIds: selectedAddOns, qty });
-    rum.tracepoint("addToBasket", `${product!.slug}:${variant.id}`);
-    rum.conversion("add_to_basket", total);
     setAdded(true);
   }
 

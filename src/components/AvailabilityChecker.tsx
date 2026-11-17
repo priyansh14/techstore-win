@@ -43,8 +43,7 @@ export function AvailabilityChecker({
       const ms = Math.round(performance.now() - t);
       rum.mark("availability:end");
       rum.measure("availability-check", "availability:start", "availability:end");
-      rum.indicator("availabilityCheckMs", ms);
-      rum.tracepoint("availabilityResult", r.available ? "available" : "unavailable");
+      rum.indicator("availms", ms);
       setClientMs(ms);
       setResult(r);
       setState("success");

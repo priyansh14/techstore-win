@@ -317,6 +317,9 @@ async function serveApp(req: Request, env: Env): Promise<Response> {
   const res = await env.ASSETS.fetch(req);
   if (!(res.headers.get("content-type") ?? "").includes("text/html")) return res;
   const ctx = resolveContext(req, env);
+  // Serve the "third-party" SDK from its own host in production so RUM zones can separate it.
+  const host = new URL(req.url).hostname;
+  const sdkOrigin = env.ANALYTICS_HOST && host.endsWith(env.ANALYTICS_HOST.replace(/^analytics\./, "")) ? `https://${env.ANALYTICS_HOST}` : "";
   let scenario: ScenarioId = "healthy";
   try {
     scenario = (await effective(ctx)).scenario;
@@ -337,28 +340,47 @@ async function serveApp(req: Request, env: Env): Promise<Response> {
     .on("head", {
       element(el) {
         if (scenario === "slow_experience") {
-          el.append(`<script async src="/sdk/nexora-analytics.js?delay=2500" data-testid="third-party-analytics"></script>`, { html: true });
+          el.append(`<script async src="${sdkOrigin}/sdk/nexora-analytics.js?delay=2500" data-testid="third-party-analytics"></script>`, { html: true });
         }
       },
     })
     .transform(out);
 }
 
+/**
+ * Network Error Logging: when a Catchpoint RUM app ID is configured, browsers are told to report
+ * DNS/TCP/TLS failures, abandoned requests and HTTP 4xx/5xx responses to Catchpoint.
+ */
+function withNel(res: Response, env: Env): Response {
+  const appId = env.CATCHPOINT_RUM_APP_ID?.trim();
+  if (!appId || !/^\d+$/.test(appId)) return res;
+  const out = new Response(res.body, res);
+  out.headers.set("Report-To", JSON.stringify({ group: "network-errors", max_age: 2592000, endpoints: [{ url: `https://r.3gl.net/hawklogserver/${appId}/re.p` }] }));
+  out.headers.set("NEL", JSON.stringify({ report_to: "network-errors", max_age: 2592000, success_fraction: 0, failure_fraction: 1.0, include_subdomains: true }));
+  return out;
+}
+
+async function route(req: Request, env: Env, exec: ExecutionContext): Promise<Response> {
+  const url = new URL(req.url);
+  if (url.pathname === "/sdk/nexora-analytics.js") return analyticsScript(url);
+  // The third-party host only serves the simulated SDK.
+  if (env.ANALYTICS_HOST && url.hostname === env.ANALYTICS_HOST) return Response.redirect(`https://${url.hostname.replace(/^analytics\./, "")}/`, 302);
+  if (url.pathname.startsWith("/api/")) {
+    try {
+      return await handleApi(req, env, exec);
+    } catch (err) {
+      console.error("api error", err);
+      return new Response(JSON.stringify({ error: { code: "INTERNAL", message: "Unexpected server error" } }), {
+        status: 500,
+        headers: { "content-type": "application/json", "x-nexora-service": "storefront-edge", "cache-control": "no-store" },
+      });
+    }
+  }
+  return serveApp(req, env);
+}
+
 export default {
   async fetch(req, env, exec): Promise<Response> {
-    const url = new URL(req.url);
-    if (url.pathname.startsWith("/api/")) {
-      try {
-        return await handleApi(req, env, exec);
-      } catch (err) {
-        console.error("api error", err);
-        return new Response(JSON.stringify({ error: { code: "INTERNAL", message: "Unexpected server error" } }), {
-          status: 500,
-          headers: { "content-type": "application/json", "x-nexora-service": "storefront-edge", "cache-control": "no-store" },
-        });
-      }
-    }
-    if (url.pathname === "/sdk/nexora-analytics.js") return analyticsScript(url);
-    return serveApp(req, env);
+    return withNel(await route(req, env, exec), env);
   },
 } satisfies ExportedHandler<Env>;

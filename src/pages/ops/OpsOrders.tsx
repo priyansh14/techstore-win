@@ -115,7 +115,7 @@ export default function OpsOrders() {
                 >
                   <td className="px-4 py-3 font-mono font-semibold">{o.id}</td>
                   <td className="px-4 py-3 capitalize">{o.profile}</td>
-                  <td className="px-4 py-3">{o.customer.fullName}</td>
+                  <td className="rr-mask px-4 py-3">{o.customer.fullName}</td>
                   <td className="px-4 py-3 text-right font-medium">{money(o.totals.total)}</td>
                   <td className="px-4 py-3">
                     <span className="text-slate-500">{o.completedStages}/6</span> {o.currentMilestone}
