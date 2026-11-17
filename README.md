@@ -43,10 +43,16 @@ npm run test:e2e     # builds, starts `vite preview` and runs the journeys
 
 ## Deploy to Cloudflare
 
+**Automatic (default):** the repo is connected to Cloudflare Workers Builds. Every push to `main` runs `npm run build` and then `npx wrangler deploy`. Build logs are under **Workers & Pages → nexora-techstore → Deployments**.
+
+**Manual (only if needed):**
+
 ```bash
 npx wrangler login   # once
 npm run deploy       # builds and runs `wrangler deploy`
 ```
+
+Use one method at a time. A manual deploy is replaced by the next push to `main`.
 
 This deploys the `nexora-techstore` Worker and its Durable Object. No KV, D1 or secrets are needed.
 
