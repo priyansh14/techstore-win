@@ -35,6 +35,10 @@ async function clickUnique(locator) {
   await uniqueVisible(locator);
   await locator.click();
 }
+/** Waits for the network to go quiet (bounded), so late requests are attributed to the right step. */
+async function settle() {
+  await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+}
 async function fillUnique(locator, value) {
   await uniqueVisible(locator);
   await locator.fill(value);
@@ -45,12 +49,15 @@ await page.goto(BASE + '/?workspace=' + WORKSPACE, { waitUntil: 'domcontentloade
 await uniqueVisible(t('hero-title'));
 // Featured plans come from /api/catalog; wait until they have rendered.
 await expect(t('featured-grid')).toHaveAttribute('data-state', 'success', { timeout: TIMEOUT });
+// Let fonts, product images and third-party tags finish so they land in this step's waterfall.
+await settle();
 
 await Catchpoint.startStep('2. Open Catalog');
 await clickUnique(t('nav-catalog'));
 await expect(page).toHaveURL(BASE + '/catalog', { timeout: TIMEOUT });
 await expect(t('catalog-grid')).toHaveAttribute('data-state', 'success', { timeout: TIMEOUT });
 await uniqueVisible(t('product-card-' + PRODUCT));
+await settle();
 
 await Catchpoint.startStep('3. Select Product');
 await clickUnique(t('btn-configure-' + PRODUCT));
@@ -59,6 +66,8 @@ await expect(t('product-detail')).toHaveAttribute('data-slug', PRODUCT, { timeou
 await expect(t('product-name')).toHaveText('Nexora Fiber 1 Gbps');
 // Add to basket stays disabled until availability is confirmed.
 await expect(t('btn-add-to-basket')).toBeDisabled();
+await expect(t('recommendations')).toBeVisible({ timeout: TIMEOUT });
+await settle();
 
 await Catchpoint.startStep('4. Check Availability');
 await fillUnique(t('input-postcode'), POSTCODE);
@@ -106,6 +115,7 @@ if (placed === 'error') {
 await uniqueVisible(t('order-confirmation'));
 const orderId = (await t('order-id').textContent()).trim();
 expect(orderId).toMatch(/^NX-\d{4}-\d{4}$/);
+await settle();
 
 await Catchpoint.startStep('10. Track Order to Service Active');
 await expect(t('milestone-1')).toHaveAttribute('data-state', 'done');

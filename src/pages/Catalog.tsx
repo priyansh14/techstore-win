@@ -95,7 +95,7 @@ export default function Catalog() {
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" data-testid="catalog-grid" data-state={catalog.state} data-count={products.length}>
         {catalog.state === "loading" || catalog.state === "idle"
           ? Array.from({ length: 4 }, (_, i) => <ProductCardSkeleton key={i} />)
-          : products.map((p) => <ProductCard key={p.slug} product={p} priceSuffix={profile.priceSuffix} />)}
+          : products.map((p) => <ProductCard key={p.slug} product={p} priceSuffix={profile.priceSuffix} eager />)}
       </div>
       {catalog.state === "success" && products.length === 0 && (
         <div className="card p-10 text-center" data-testid="catalog-empty">

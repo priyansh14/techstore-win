@@ -3,12 +3,12 @@ import type { Product } from "../../shared/types";
 import { ProductIllustration } from "./ProductIllustration";
 import { Icon, Price, Stars } from "./ui";
 
-export function ProductCard({ product, priceSuffix }: { product: Product; priceSuffix: string }) {
+export function ProductCard({ product, priceSuffix, eager }: { product: Product; priceSuffix: string; eager?: boolean }) {
   const from = Math.min(...product.variants.map((v) => v.price));
   return (
     <article className="group card flex flex-col overflow-hidden transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-slate-900/5" data-testid={`product-card-${product.slug}`}>
       <Link to={`/product/${product.slug}`} className="relative block border-b border-line" tabIndex={-1} aria-hidden="true">
-        <ProductIllustration slug={product.slug} label={product.name} className="w-full" />
+        <ProductIllustration slug={product.slug} label={product.name} className="w-full" priority={eager} />
         {product.badge && (
           <span className="absolute top-3 left-3 rounded-full bg-ink px-2.5 py-1 text-[11px] font-semibold tracking-wide text-white">{product.badge}</span>
         )}

@@ -101,9 +101,9 @@ export default function Home() {
         </div>
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4" data-testid="featured-grid" data-state={catalog.state}>
           {catalog.state === "success" && catalog.data
-            ? catalog.data.products.slice(0, 4).map((p) => <ProductCard key={p.slug} product={p} priceSuffix={profile.priceSuffix} />)
+            ? catalog.data.products.slice(0, 4).map((p) => <ProductCard key={p.slug} product={p} priceSuffix={profile.priceSuffix} eager />)
             : catalog.state === "error"
-              ? profile.products.map((p) => <ProductCard key={p.slug} product={p} priceSuffix={profile.priceSuffix} />)
+              ? profile.products.map((p) => <ProductCard key={p.slug} product={p} priceSuffix={profile.priceSuffix} eager />)
               : Array.from({ length: 4 }, (_, i) => <ProductCardSkeleton key={i} />)}
         </div>
       </section>
