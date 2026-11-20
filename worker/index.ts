@@ -65,10 +65,11 @@ function respond(ctx: Ctx, service: ServiceId, scenario: ScenarioId, body: unkno
       "server-timing": [...ctx.timings, `total;desc="Total";dur=${total}`].join(", "),
       "timing-allow-origin": "*",
       "access-control-allow-origin": "*",
-      "access-control-expose-headers": "Server-Timing, X-Nexora-Service, X-Nexora-Scenario, X-Workspace-ID",
+      "access-control-expose-headers": "Server-Timing, X-Nexora-Service, X-Nexora-Scenario, X-Workspace-ID, X-Nexora-Country",
       "x-nexora-service": service,
       "x-nexora-scenario": scenario,
       "x-workspace-id": ctx.workspace,
+      "x-nexora-country": ctx.country,
       ...extra,
     },
   });
@@ -377,6 +378,7 @@ async function serveApp(req: Request, env: Env): Promise<Response> {
   headers.set("cache-control", "no-cache");
   headers.set("x-nexora-scenario", scenario);
   headers.set("x-workspace-id", ctx.workspace);
+  headers.set("x-nexora-country", ctx.country);
   const out = new Response(res.body, { status: res.status, headers });
   return new HTMLRewriter()
     .on("html", {
