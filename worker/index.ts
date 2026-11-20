@@ -18,6 +18,8 @@ interface Ctx {
   store: DurableObjectStub<import("./workspace").WorkspaceStore>;
   started: number;
   timings: string[];
+  /** Simulated work per stage, also exposed as X-Nexora-<Stage>-Ms headers for synthetic Insights. */
+  durations: Record<string, number>;
 }
 
 function cookie(req: Request, name: string): string | undefined {
@@ -39,6 +41,7 @@ function resolveContext(req: Request, env: Env): Ctx {
     store: env.WORKSPACE.get(env.WORKSPACE.idFromName(workspace)),
     started: Date.now(),
     timings: [],
+    durations: {},
   };
 }
 
@@ -70,6 +73,8 @@ function respond(ctx: Ctx, service: ServiceId, scenario: ScenarioId, body: unkno
       "x-nexora-scenario": scenario,
       "x-workspace-id": ctx.workspace,
       "x-nexora-country": ctx.country,
+      // One header per timed stage (e.g. X-Nexora-Availability-Ms) so Insights can read a single number.
+      ...Object.fromEntries(Object.entries(ctx.durations).map(([k, v]) => [`x-nexora-${k}-ms`, String(v)])),
       ...extra,
     },
   });
@@ -78,6 +83,7 @@ function respond(ctx: Ctx, service: ServiceId, scenario: ScenarioId, body: unkno
 /** Simulated processing time, recorded in Server-Timing under `name`. */
 async function work(ctx: Ctx, name: string, desc: string, ms: number) {
   await sleep(ms);
+  ctx.durations[name] = ms;
   ctx.timings.push(`${name};desc="${desc}";dur=${ms}`);
 }
 
