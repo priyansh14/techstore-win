@@ -114,8 +114,8 @@ const placed = await Promise.race([
 ]);
 if (placed === 'error') {
   const code = await t('checkout-error').getAttribute('data-code');
-  const status = await t('checkout-error').getAttribute('data-status');
-  throw new Error('Checkout failed: HTTP ' + status + ' ' + code);
+  const httpStatus = await t('checkout-error').getAttribute('data-status');
+  throw new Error('Checkout failed: HTTP ' + httpStatus + ' ' + code);
 }
 await uniqueVisible(t('order-confirmation'));
 const orderId = (await t('order-id').textContent()).trim();
@@ -128,12 +128,12 @@ await expect(t('milestone-1')).toHaveAttribute('data-state', 'done');
 await expect
   .poll(() => t('order-detail').getAttribute('data-status'), { timeout: 28000, intervals: [1000] })
   .not.toBe('in_progress');
-const status = await t('order-detail').getAttribute('data-status');
-if (status === 'stalled') {
+const orderStatus = await t('order-detail').getAttribute('data-status');
+if (orderStatus === 'stalled') {
   const milestone = (await t('order-current-milestone').textContent()).trim();
   const reason = (await t('milestone-stall-reason').textContent()).trim();
   throw new Error('Order ' + orderId + ' stalled at "' + milestone + '": ' + reason);
 }
-expect(status).toBe('completed');
+expect(orderStatus).toBe('completed');
 await expect(t('milestone-6')).toHaveAttribute('data-state', 'done');
 await uniqueVisible(t('order-completed-banner'));
