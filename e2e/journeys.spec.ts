@@ -153,3 +153,46 @@ test("deep links work on hard load", async ({ page }) => {
   expect(api.headers()["server-timing"]).toContain("total");
   expect(api.headers()["x-nexora-service"]).toBe("storefront-edge");
 });
+
+test("region-scoped scenario: UK visitors fail checkout, others succeed", async ({ request }) => {
+  const ws = uniqueWorkspace("region");
+  const set = await request.post("/api/scenarios", { headers: { "X-Workspace-ID": ws }, data: { action: "set", scenario: "checkout_failure", region: "uk" } });
+  expect((await set.json()).workspace.scenarioRegion).toBe("uk");
+  const order = {
+    items: [{ slug: "fiber-300m", variantId: "12m", addOnIds: [], qty: 1 }],
+    customer: { fullName: "Region Test", email: "region@example.com", phone: "+44 20 7946 0000" },
+    address: { line1: "1 Test Street", city: "London", postcode: "SW1A 1AA" },
+    journey: { slot: "morning", preference: "nexora-router" },
+    payment: { cardName: "Region Test", last4: "4242", expiry: "12/29", brand: "Visa" },
+  };
+  const uk = await request.post("/api/orders", { headers: { "X-Workspace-ID": ws, "X-Nexora-Country": "GB" }, data: order });
+  expect(uk.status()).toBe(502);
+  const de = await request.post("/api/orders", { headers: { "X-Workspace-ID": ws, "X-Nexora-Country": "DE" }, data: order });
+  expect(de.status()).toBe(200);
+  expect((await request.get("/api/health", { headers: { "X-Workspace-ID": ws, "X-Nexora-Country": "GB" } })).status()).toBe(503);
+  const health = await request.get("/api/health", { headers: { "X-Workspace-ID": ws, "X-Nexora-Country": "DE" } });
+  expect(health.status()).toBe(200);
+  // The ops view still shows the outage and its scope, even from outside the region.
+  const body = await health.json();
+  expect(body.scenario).toBe("checkout_failure");
+  expect(body.scenarioRegion).toBe("uk");
+});
+
+test("waterfall includes fonts, CDN images and simulated third-party vendors", async ({ page }) => {
+  const urls: string[] = [];
+  page.on("requestfinished", (r) => urls.push(r.url()));
+  await page.route(/\.3gl\.net\//, (route) => route.abort());
+  await page.goto(`/?workspace=${uniqueWorkspace("wf")}`);
+  await expect(page.getByTestId("featured-grid")).toHaveAttribute("data-state", "success");
+  await expect(page.getByTestId("promotions")).toBeVisible();
+  await expect.poll(() => urls.some((u) => u.includes("/tp/reviews/widget.js")), { timeout: 10_000 }).toBe(true);
+  await expect.poll(() => urls.some((u) => u.includes("/tp/ads/px.gif")), { timeout: 10_000 }).toBe(true);
+  const has = (s: string) => urls.some((u) => u.includes(s));
+  for (const s of ["/tp/tags/gtm.js", "/tp/analytics/sdk/nexora-analytics.js", "/tp/analytics/collect", "/tp/chat/widget.js", "/tp/chat/v1/config", "/tp/cdn/img/products/", ".woff2", "/api/promotions"]) {
+    await expect.poll(() => has(s), { message: s, timeout: 10_000 }).toBe(true);
+  }
+  await page.getByTestId("btn-configure-fiber-1g").click();
+  await expect(page.getByTestId("recommendations")).toBeVisible();
+  await expect.poll(() => urls.some((u) => u.includes("/tp/reviews/v1/ratings?sku=fiber-1g")), { timeout: 10_000 }).toBe(true);
+  await expect(page.getByTestId("chat-launcher")).toBeVisible();
+});

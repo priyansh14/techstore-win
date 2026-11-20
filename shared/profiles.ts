@@ -1,4 +1,4 @@
-import type { ProfileDefinition, ProfileId, ScenarioDefinition, ScenarioId, ServiceId } from "./types";
+import type { ProfileDefinition, ProfileId, ScenarioDefinition, ScenarioId, ScenarioRegion, ServiceId } from "./types";
 
 export const telecom: ProfileDefinition = {
   id: "telecom",
@@ -307,3 +307,17 @@ export const SERVICES: { id: ServiceId; name: string; description: string }[] = 
 ];
 
 export const serviceName = (id: ServiceId) => SERVICES.find((s) => s.id === id)?.name ?? id;
+
+export const SCENARIO_REGIONS: { id: ScenarioRegion; label: string; short: string }[] = [
+  { id: "all", label: "All regions", short: "All regions" },
+  { id: "uk", label: "UK visitors only", short: "UK only" },
+  { id: "non_uk", label: "Visitors outside the UK", short: "Outside UK" },
+];
+export const isScenarioRegion = (v: unknown): v is ScenarioRegion => v === "all" || v === "uk" || v === "non_uk";
+
+/** True when a workspace scenario scoped to `region` applies to a visitor from `country`. */
+export function regionMatches(region: ScenarioRegion | undefined, country: string | undefined): boolean {
+  if (!region || region === "all") return true;
+  const uk = (country ?? "").toUpperCase() === "GB";
+  return region === "uk" ? uk : !uk;
+}

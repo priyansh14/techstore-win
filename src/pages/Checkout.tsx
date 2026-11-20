@@ -6,6 +6,7 @@ import { Banner, Icon, PageHeader, Spinner } from "../components/ui";
 import { api, ApiError } from "../lib/api";
 import { cx, money } from "../lib/format";
 import { rum } from "../lib/rumBridge";
+import { emitPageEvent } from "../lib/vendors";
 import { useApp, useConfig } from "../state/AppContext";
 import { getPromo } from "./Basket";
 
@@ -113,6 +114,7 @@ export default function Checkout() {
       rum.tracepoint("checkoutstep", "success");
       rum.tracepoint("orderid", order.id);
       rum.conversion(order.totals.total, order.lines.reduce((n, l) => n + l.qty, 0));
+      emitPageEvent("conversion", { orderId: order.id, revenue: order.totals.total });
       setState("success");
       rememberOrder(order.id);
       clearBasket();

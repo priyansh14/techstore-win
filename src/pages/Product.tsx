@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import type { AddOn, Availability, Product as ProductT } from "../../shared/types";
 import { AvailabilityChecker } from "../components/AvailabilityChecker";
+import { ProductCard } from "../components/ProductCard";
 import { ProductIllustration } from "../components/ProductIllustration";
 import { Banner, Icon, Price, Stars } from "../components/ui";
 import { api, ApiError } from "../lib/api";
@@ -16,6 +17,10 @@ export default function Product() {
   const navigate = useNavigate();
   const res = useAsync((signal) => api<{ products: ProductT[]; addOns: AddOn[] }>(`/api/catalog?slug=${encodeURIComponent(slug)}`, { signal }), [slug, profile.id]);
   const product = res.data?.products[0];
+  const recs = useAsync(
+    (signal) => api<{ products: ProductT[] }>(`/api/recommendations?slug=${encodeURIComponent(slug)}`, { signal }),
+    [slug, profile.id],
+  );
   const addOns = res.data?.addOns ?? [];
 
   const [variantId, setVariantId] = useState<string>();
@@ -84,7 +89,7 @@ export default function Product() {
       <div className="grid gap-10 lg:grid-cols-2" data-testid="product-detail" data-slug={product.slug}>
         <div className="space-y-6">
           <div className="card overflow-hidden">
-            <ProductIllustration slug={product.slug} label={product.name} width={640} height={400} className="w-full" />
+            <ProductIllustration slug={product.slug} label={product.name} width={640} height={400} className="w-full" priority />
           </div>
           <div className="card p-6">
             <h2 className="font-semibold">Highlights</h2>
@@ -215,6 +220,19 @@ export default function Product() {
           </div>
         </div>
       </div>
+
+      {recs.data && recs.data.products.length > 0 && (
+        <section className="mt-16" aria-labelledby="recs-heading" data-testid="recommendations" data-state={recs.state}>
+          <h2 id="recs-heading" className="mb-6 text-2xl font-semibold tracking-tight">
+            You might also like
+          </h2>
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {recs.data.products.map((p) => (
+              <ProductCard key={p.slug} product={p} priceSuffix={profile.priceSuffix} />
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

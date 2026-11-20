@@ -16,7 +16,12 @@ export default function OpsLayout() {
   const config = useConfig();
   const { refreshConfig } = useApp();
   const [ws, setWs] = useState(config.workspace);
-  const scenarioLabel = config.scenarios.find((s) => s.id === config.scenario)?.label ?? config.scenario;
+  // The console shows the workspace scenario (and its region), not just what this presenter experiences.
+  const activeScenario = config.scenarioSource === "session" ? config.scenario : config.workspaceState.scenario;
+  const region = config.workspaceState.scenarioRegion ?? "all";
+  const scenarioLabel =
+    (config.scenarios.find((s) => s.id === activeScenario)?.label ?? activeScenario) +
+    (config.scenarioSource !== "session" && region !== "all" && activeScenario !== "healthy" ? (region === "uk" ? " · UK only" : " · Outside UK") : "");
 
   function switchWorkspace(e: FormEvent) {
     e.preventDefault();
@@ -46,7 +51,7 @@ export default function OpsLayout() {
               <span className="rounded-full bg-slate-800 px-2.5 py-1 font-medium" data-testid="ops-profile-chip">
                 {config.profile.id === "telecom" ? "Telecom" : "Retail"} profile
               </span>
-              <span className={cx("rounded-full px-2.5 py-1 font-semibold ring-1 ring-inset", SCENARIO_TONE[config.scenario])} data-testid="ops-scenario-chip">
+              <span className={cx("rounded-full px-2.5 py-1 font-semibold ring-1 ring-inset", SCENARIO_TONE[activeScenario])} data-testid="ops-scenario-chip">
                 {scenarioLabel}
                 {config.scenarioSource === "session" ? " (session)" : ""}
               </span>

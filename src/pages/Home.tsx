@@ -11,6 +11,7 @@ import { useConfig } from "../state/AppContext";
 export default function Home() {
   const { profile } = useConfig();
   const catalog = useAsync((signal) => api<{ products: Product[] }>("/api/catalog", { signal }), [profile.id]);
+  const promos = useAsync((signal) => api<{ promotions: { id: string; title: string; body: string; code: string | null }[] }>("/api/promotions", { signal }), [profile.id]);
   const hero = profile.products[0];
 
   return (
@@ -41,7 +42,7 @@ export default function Home() {
           </div>
           <div className="relative hidden lg:block">
             <div className="overflow-hidden rounded-[2rem] border border-line shadow-2xl shadow-indigo-900/10">
-              <ProductIllustration slug={hero.slug} label={hero.name} width={640} height={400} className="w-full" />
+              <ProductIllustration slug={hero.slug} label={hero.name} width={640} height={400} className="w-full" priority />
             </div>
             <div className="absolute -bottom-6 -left-6 rounded-2xl border border-line bg-white p-4 shadow-lg">
               <p className="text-xs text-slate-500">Featured</p>
@@ -67,6 +68,24 @@ export default function Home() {
           ))}
         </div>
       </section>
+
+      {promos.data && promos.data.promotions.length > 0 && (
+        <section className="container-page pt-10" aria-label="Current offers" data-testid="promotions" data-state={promos.state}>
+          <div className="grid gap-4 md:grid-cols-2">
+            {promos.data.promotions.map((p) => (
+              <div key={p.id} className="flex items-start gap-4 rounded-2xl border border-indigo-100 bg-accent-soft p-5" data-testid={`promo-${p.id}`}>
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-accent">
+                  <Icon name="bolt" />
+                </span>
+                <div>
+                  <p className="font-semibold text-indigo-950">{p.title}</p>
+                  <p className="mt-1 text-sm text-indigo-900/80">{p.body}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="container-page py-16" aria-labelledby="featured-heading">
         <div className="mb-8 flex flex-wrap items-end justify-between gap-4">

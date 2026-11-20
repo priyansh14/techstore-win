@@ -1,5 +1,6 @@
 import { useState } from "react";
-import type { ProfileId, ScenarioId, WorkspaceSnapshot } from "../../../shared/types";
+import { regionMatches, SCENARIO_REGIONS } from "../../../shared/profiles";
+import type { ProfileId, ScenarioId, ScenarioRegion, WorkspaceSnapshot } from "../../../shared/types";
 import { Banner, Icon, Spinner } from "../../components/ui";
 import { api } from "../../lib/api";
 import { cx } from "../../lib/format";
@@ -7,7 +8,7 @@ import { setProfileOverride, setScenarioOverride } from "../../lib/session";
 import { useApp, useConfig } from "../../state/AppContext";
 import { SCENARIO_TONE } from "./OpsLayout";
 
-type Busy = null | "profile" | "reset" | "seed" | ScenarioId;
+type Busy = null | "profile" | "reset" | "seed" | "region" | ScenarioId;
 
 export default function OpsScenarios() {
   const config = useConfig();
@@ -34,6 +35,10 @@ export default function OpsScenarios() {
     setProfileOverride(null);
     void post({ action: "set", profile: p }, "profile", `Workspace switched to the ${p === "telecom" ? "Telecom" : "Retail"} profile.`);
   };
+  const setRegion = (r: ScenarioRegion) =>
+    void post({ action: "set", region: r }, "region", `Scenario now applies to: ${SCENARIO_REGIONS.find((x) => x.id === r)?.label}.`);
+  const region = ws.scenarioRegion ?? "all";
+  const appliesToMe = regionMatches(region, config.country);
   const setScenario = (s: ScenarioId) => {
     setScenarioOverride(null);
     void post({ action: "set", scenario: s }, s, `Scenario set to ${config.scenarios.find((x) => x.id === s)?.label}.`);
@@ -120,9 +125,32 @@ export default function OpsScenarios() {
       </section>
 
       <section aria-labelledby="scenario-heading">
-        <h2 id="scenario-heading" className="mb-4 font-semibold">
-          Scenario
-        </h2>
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
+          <h2 id="scenario-heading" className="font-semibold">
+            Scenario
+          </h2>
+          <div className="flex flex-col items-end gap-1.5">
+            <div className="inline-flex rounded-full border border-line bg-white p-1" role="radiogroup" aria-label="Scenario applies to" data-testid="scenario-region" data-region={region}>
+              {SCENARIO_REGIONS.map((r) => (
+                <button
+                  key={r.id}
+                  role="radio"
+                  aria-checked={region === r.id}
+                  onClick={() => setRegion(r.id)}
+                  disabled={!!busy}
+                  data-testid={`btn-region-${r.id}`}
+                  className={cx("rounded-full px-3.5 py-1.5 text-xs font-semibold transition", region === r.id ? "bg-ink text-white" : "text-slate-600 hover:text-ink")}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-slate-500" data-testid="region-hint">
+              You're browsing from <span className="font-mono font-semibold">{config.country}</span>:{" "}
+              {appliesToMe ? "the active scenario applies to you." : "the active scenario does not apply to you, so your storefront stays healthy."}
+            </p>
+          </div>
+        </div>
         <div className="grid gap-4 md:grid-cols-2">
           {config.scenarios.map((s) => {
             const active = ws.scenario === s.id;

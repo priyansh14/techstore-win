@@ -4,6 +4,7 @@ import { StoreLayout } from "./components/Layout";
 import { Banner, Spinner } from "./components/ui";
 import { rum, RUM_TOKENS, type PageGroupToken } from "./lib/rumBridge";
 import { syncSessionFromUrl } from "./lib/session";
+import { emitPageEvent } from "./lib/vendors";
 import Basket from "./pages/Basket";
 import Catalog from "./pages/Catalog";
 import Checkout from "./pages/Checkout";
@@ -53,6 +54,7 @@ function RouteEffects() {
     const t = setTimeout(() => {
       const group = PAGE_GROUPS.find(([p]) => matchPath(p, location.pathname))?.[1] ?? "notfound";
       rum.pageGroup(group);
+      emitPageEvent("pageview", { group, path: location.pathname, profile: config.profile.id });
       rum.variation(config.profile.id);
       rum.tracepoint("scenario", config.scenario);
       rum.tracepoint("workspace", config.workspace);

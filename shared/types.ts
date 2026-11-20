@@ -1,5 +1,7 @@
 export type ProfileId = "telecom" | "retail";
 export type ScenarioId = "healthy" | "slow_experience" | "checkout_failure" | "stalled_order";
+/** Which visitors a workspace scenario applies to, by Cloudflare-detected country. */
+export type ScenarioRegion = "all" | "uk" | "non_uk";
 export type ServiceId =
   | "storefront-edge"
   | "catalog-pricing"
@@ -203,6 +205,7 @@ export interface WorkspaceSnapshot {
   scenario: ScenarioId;
   scenarioSetAt: number;
   scenarioExpiresAt?: number;
+  scenarioRegion: ScenarioRegion;
   orderCount: number;
 }
 
@@ -213,6 +216,8 @@ export interface ConfigResponse {
   scenarioSource: "workspace" | "session";
   profileSource: "workspace" | "session";
   workspaceState: WorkspaceSnapshot;
+  /** ISO country of this visitor as seen by the edge (e.g. GB). */
+  country: string;
   scenarios: ScenarioDefinition[];
   serverTime: number;
 }

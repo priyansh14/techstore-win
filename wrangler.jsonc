@@ -16,13 +16,17 @@
   "routes": [
     { "pattern": "techstore.win", "custom_domain": true },
     { "pattern": "www.techstore.win", "custom_domain": true },
-    { "pattern": "analytics.techstore.win", "custom_domain": true }
+    { "pattern": "analytics.techstore.win", "custom_domain": true },
+    // Simulated third-party vendors and image CDN (see worker/vendors.ts).
+    { "pattern": "cdn.techstore.win", "custom_domain": true },
+    { "pattern": "tags.techstore.win", "custom_domain": true },
+    { "pattern": "chat.techstore.win", "custom_domain": true },
+    { "pattern": "reviews.techstore.win", "custom_domain": true },
+    { "pattern": "ads.techstore.win", "custom_domain": true }
   ],
   "vars": {
     // Numeric Catchpoint RUM app ID. When set, responses carry NEL/Report-To headers pointing at Catchpoint.
-    "CATCHPOINT_RUM_APP_ID": "16084",
-    // Host that serves the simulated third-party analytics SDK (a separate RUM zone).
-    "ANALYTICS_HOST": "analytics.techstore.win"
+    "CATCHPOINT_RUM_APP_ID": "16084"
   },
   "workers_dev": true,
   "observability": { "enabled": true }

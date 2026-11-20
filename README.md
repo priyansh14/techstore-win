@@ -88,6 +88,22 @@ User Timing marks/measures use the `nexora:` prefix (e.g. `nexora:availability-c
 
 Postcodes starting with `000` are deliberately outside the coverage area. Demo checkout accepts only public test cards (`4242 4242 4242 4242`), and only the last 4 digits are ever sent to the server. Customer details are masked in all API responses.
 
+## Simulated third parties and CDN
+
+To give synthetic waterfalls and RUM zones realistic depth, the Worker also serves simulated vendors
+on their own hosts (or under `/tp/<vendor>/` locally and on workers.dev): `cdn.` (product images),
+`tags.` (tag manager), `analytics.` (SDK + `/collect` beacons), `chat.` (widget, CSS, config),
+`reviews.` (widget + ratings API) and `ads.` (pixels). Pages also load self-hosted Inter web fonts,
+`/api/promotions` and `/api/recommendations`. None of this depends on an external service.
+
+## Region-scoped scenarios
+
+A workspace scenario can apply to **All regions**, **UK visitors only** or **Visitors outside the UK**
+(set in `/ops/scenarios`, or `POST /api/scenarios {"action":"set","region":"uk"}`). The visitor's
+country comes from Cloudflare (`X-Nexora-Country` overrides it for testing). A session pin
+(`?scenario=`) always applies regardless of region. `/api/health` returns 503 only to callers
+inside the affected region, while its body always reports the workspace scenario and its region.
+
 ## API
 
 Every response carries `Server-Timing`, `X-Nexora-Service`, `X-Nexora-Scenario` and `X-Workspace-ID`, plus `Timing-Allow-Origin: *`.

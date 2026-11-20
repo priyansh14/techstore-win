@@ -1,6 +1,8 @@
 import { checkAvailability, computeHealth, isValidPostcode, materialize, validateCheckout } from "../shared/engine";
-import { isProfileId, isScenarioId, PROFILES, SCENARIOS } from "../shared/profiles";
+import { isProfileId, isScenarioId, isScenarioRegion, PROFILES, regionMatches, SCENARIOS } from "../shared/profiles";
 import type { CheckoutInput, ConfigResponse, OrderView, ProfileId, ScenarioId, ServiceId, WorkspaceSnapshot } from "../shared/types";
+
+import { handleVendor, matchVendor, PROD_DOMAIN, type Vendor } from "./vendors";
 
 export { WorkspaceStore } from "./workspace";
 
@@ -11,6 +13,8 @@ interface Ctx {
   workspace: string;
   scenarioOverride?: ScenarioId;
   profileOverride?: ProfileId;
+  /** Visitor country from Cloudflare (X-Nexora-Country overrides it for testing). */
+  country: string;
   store: DurableObjectStub<import("./workspace").WorkspaceStore>;
   started: number;
   timings: string[];
@@ -31,6 +35,7 @@ function resolveContext(req: Request, env: Env): Ctx {
     workspace,
     scenarioOverride: isScenarioId(scn) ? scn : undefined,
     profileOverride: isProfileId(prof) ? prof : undefined,
+    country: (req.headers.get("x-nexora-country") || (req as { cf?: { country?: string } }).cf?.country || "XX").toUpperCase().slice(0, 2),
     store: env.WORKSPACE.get(env.WORKSPACE.idFromName(workspace)),
     started: Date.now(),
     timings: [],
@@ -41,9 +46,11 @@ async function effective(ctx: Ctx) {
   const t = Date.now();
   const snapshot = await ctx.store.snapshot(ctx.workspace);
   ctx.timings.push(`state;desc="Workspace state";dur=${Date.now() - t}`);
+  // A session pin (?scenario=) always wins; a workspace scenario only applies inside its region.
+  const workspaceScenario = regionMatches(snapshot.scenarioRegion, ctx.country) ? snapshot.scenario : "healthy";
   return {
     snapshot,
-    scenario: ctx.scenarioOverride ?? snapshot.scenario,
+    scenario: ctx.scenarioOverride ?? workspaceScenario,
     profile: ctx.profileOverride ?? snapshot.profile,
   };
 }
@@ -132,6 +139,30 @@ async function handleApi(req: Request, env: Env, exec: ExecutionContext): Promis
   };
   const slow = scenario === "slow_experience";
 
+  // GET /api/promotions
+  if (path === "/api/promotions" && req.method === "GET") {
+    await work(ctx, "promotions", "Promotions engine", rand(30, 90));
+    const promotions =
+      profileId === "telecom"
+        ? [
+            { id: "promo-fiber", title: "3 months half price on Fiber 1 Gbps", body: "New customers on a 12-month contract. Use code WELCOME10 for a further 10% off.", code: "WELCOME10" },
+            { id: "promo-mesh", title: "Free Wi-Fi 7 mesh node", body: "Add whole-home coverage at no extra cost this month.", code: null },
+          ]
+        : [
+            { id: "promo-studio", title: "Save 10% on StudioBook Pro 14", body: "Use code WELCOME10 at checkout. Free next-day delivery on orders over $500.", code: "WELCOME10" },
+            { id: "promo-care", title: "Care+ for less", body: "Two years of accidental cover with any laptop.", code: null },
+          ];
+    return track("catalog-pricing", respond(ctx, "catalog-pricing", scenario, { profile: profileId, promotions }));
+  }
+
+  // GET /api/recommendations?slug=
+  if (path === "/api/recommendations" && req.method === "GET") {
+    await work(ctx, "recommend", "Recommendation engine", slow ? rand(1200, 1800) : rand(50, 140));
+    const slug = url.searchParams.get("slug");
+    const products = profile.products.filter((p) => p.slug !== slug).slice(0, 3);
+    return track("catalog-pricing", respond(ctx, "catalog-pricing", scenario, { profile: profileId, for: slug, products }));
+  }
+
   // GET /api/config
   if (path === "/api/config" && req.method === "GET") {
     await work(ctx, "edge", "Edge config", rand(10, 30));
@@ -142,6 +173,7 @@ async function handleApi(req: Request, env: Env, exec: ExecutionContext): Promis
       scenarioSource: ctx.scenarioOverride ? "session" : "workspace",
       profileSource: ctx.profileOverride ? "session" : "workspace",
       workspaceState: snapshot,
+      country: ctx.country,
       scenarios: SCENARIOS,
       serverTime: Date.now(),
     };
@@ -244,7 +276,7 @@ async function handleApi(req: Request, env: Env, exec: ExecutionContext): Promis
   if (path === "/api/scenarios") {
     let snap: WorkspaceSnapshot = snapshot;
     if (req.method === "POST") {
-      const body = await readJson<{ action?: string; scenario?: string; profile?: string }>(req);
+      const body = await readJson<{ action?: string; scenario?: string; profile?: string; region?: string }>(req);
       const action = body?.action ?? "set";
       if (action === "reset") snap = await ctx.store.reset(ctx.workspace);
       else if (action === "seed") snap = await ctx.store.seed(ctx.workspace, profileId);
@@ -253,7 +285,10 @@ async function handleApi(req: Request, env: Env, exec: ExecutionContext): Promis
           return respond(ctx, "storefront-edge", scenario, { error: { code: "BAD_SCENARIO", message: `Unknown scenario '${body.scenario}'` } }, 400);
         if (body?.profile !== undefined && !isProfileId(body.profile))
           return respond(ctx, "storefront-edge", scenario, { error: { code: "BAD_PROFILE", message: `Unknown profile '${body.profile}'` } }, 400);
+        if (body?.region !== undefined && !isScenarioRegion(body.region))
+          return respond(ctx, "storefront-edge", scenario, { error: { code: "BAD_REGION", message: `Unknown region '${body.region}'` } }, 400);
         snap = await ctx.store.update(ctx.workspace, {
+          region: body?.region as "all" | "uk" | "non_uk" | undefined,
           scenario: body?.scenario as ScenarioId | undefined,
           profile: body?.profile as ProfileId | undefined,
         });
@@ -271,14 +306,20 @@ async function handleApi(req: Request, env: Env, exec: ExecutionContext): Promis
   if (path === "/api/health" && req.method === "GET") {
     const [orders, samples] = await Promise.all([ctx.store.listOrders(ctx.workspace), ctx.store.getSamples()]);
     const views = orders.map((o) => materialize(o));
-    const services = computeHealth(scenario, views, samples);
+    // The ops view shows the workspace fault even to presenters outside its region.
+    const region = snapshot.scenarioRegion ?? "all";
+    const opsScenario = ctx.scenarioOverride ?? snapshot.scenario;
+    const services = computeHealth(opsScenario, views, samples, Date.now(), ctx.scenarioOverride ? "all" : region);
     const critical = services.some((s) => s.status === "Critical");
     const degraded = services.some((s) => s.status === "Degraded");
     const body = {
       status: critical ? "critical" : degraded ? "degraded" : "healthy",
       workspace: ctx.workspace,
       profile: profileId,
-      scenario,
+      scenario: opsScenario,
+      scenarioRegion: ctx.scenarioOverride ? "all" : region,
+      appliesToRequester: scenario === opsScenario,
+      country: ctx.country,
       services,
       orders: {
         total: views.length,
@@ -288,11 +329,18 @@ async function handleApi(req: Request, env: Env, exec: ExecutionContext): Promis
       },
       checkedAt: Date.now(),
     };
-    const paymentDown = services.find((s) => s.id === "payment-gateway")?.status === "Critical";
-    return respond(ctx, "storefront-edge", scenario, body, paymentDown ? 503 : 200);
+    // HTTP status follows what this caller experiences, so a UK node gets 503 for a UK-only outage.
+    const paymentDownForCaller = scenario === "checkout_failure";
+    return respond(ctx, "storefront-edge", scenario, body, paymentDownForCaller ? 503 : 200);
   }
 
   return respond(ctx, "storefront-edge", scenario, { error: { code: "NOT_FOUND", message: `No API route ${req.method} ${path}` } }, 404);
+}
+
+/** Origin of a simulated vendor: its own subdomain on techstore.win, a /tp/<vendor> path elsewhere. */
+function vendorOrigin(url: URL, vendor: Vendor): string {
+  const h = url.hostname;
+  return h === PROD_DOMAIN || h.endsWith(`.${PROD_DOMAIN}`) ? `https://${vendor}.${PROD_DOMAIN}` : `${url.origin}/tp/${vendor}`;
 }
 
 /** Simulated slow third-party analytics script used by the slow_experience scenario. */
@@ -318,8 +366,7 @@ async function serveApp(req: Request, env: Env): Promise<Response> {
   if (!(res.headers.get("content-type") ?? "").includes("text/html")) return res;
   const ctx = resolveContext(req, env);
   // Serve the "third-party" SDK from its own host in production so RUM zones can separate it.
-  const host = new URL(req.url).hostname;
-  const sdkOrigin = env.ANALYTICS_HOST && host.endsWith(env.ANALYTICS_HOST.replace(/^analytics\./, "")) ? `https://${env.ANALYTICS_HOST}` : "";
+  const sdkOrigin = vendorOrigin(new URL(req.url), "analytics");
   let scenario: ScenarioId = "healthy";
   try {
     scenario = (await effective(ctx)).scenario;
@@ -340,7 +387,7 @@ async function serveApp(req: Request, env: Env): Promise<Response> {
     .on("head", {
       element(el) {
         if (scenario === "slow_experience") {
-          el.append(`<script async src="${sdkOrigin}/sdk/nexora-analytics.js?delay=2500" data-testid="third-party-analytics"></script>`, { html: true });
+          el.append(`<script async src="${sdkOrigin}/sdk/nexora-analytics.js?delay=2500" id="nx-analytics" data-testid="third-party-analytics"></script>`, { html: true });
         }
       },
     })
@@ -363,8 +410,10 @@ function withNel(res: Response, env: Env): Response {
 async function route(req: Request, env: Env, exec: ExecutionContext): Promise<Response> {
   const url = new URL(req.url);
   if (url.pathname === "/sdk/nexora-analytics.js") return analyticsScript(url);
-  // The third-party host only serves the simulated SDK.
-  if (env.ANALYTICS_HOST && url.hostname === env.ANALYTICS_HOST) return Response.redirect(`https://${url.hostname.replace(/^analytics\./, "")}/`, 302);
+  const vendor = matchVendor(url);
+  if (vendor) return handleVendor(req, vendor.vendor, vendor.path, (v) => vendorOrigin(url, v));
+  // Vendor hosts serve only their own endpoints; anything else goes to the storefront.
+  if (url.hostname.endsWith(`.${PROD_DOMAIN}`) && url.hostname !== `www.${PROD_DOMAIN}`) return Response.redirect(`https://${PROD_DOMAIN}/`, 302);
   if (url.pathname.startsWith("/api/")) {
     try {
       return await handleApi(req, env, exec);

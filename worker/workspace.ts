@@ -1,7 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { buildOrder, materialize, newOrderId, recoverOrder, seedOrders, type ServiceSample } from "../shared/engine";
 import { DEFAULT_PROFILE } from "../shared/profiles";
-import type { CheckoutInput, ProfileId, ScenarioId, StoredOrder, WorkspaceSnapshot } from "../shared/types";
+import type { CheckoutInput, ProfileId, ScenarioId, ScenarioRegion, StoredOrder, WorkspaceSnapshot } from "../shared/types";
 
 const MAX_ORDERS = 200;
 /** Scenario changes on the shared public workspace revert automatically so real visitors aren't stuck in a fault. */
@@ -13,6 +13,7 @@ interface Meta {
   scenario: ScenarioId;
   scenarioSetAt: number;
   scenarioExpiresAt?: number;
+  scenarioRegion?: ScenarioRegion;
   initialized: true;
 }
 
@@ -31,7 +32,7 @@ export class WorkspaceStore extends DurableObject<Env> {
       await this.putOrders(seedOrders(workspace, meta.profile));
     }
     if (meta.scenarioExpiresAt && meta.scenarioExpiresAt <= Date.now()) {
-      meta = { ...meta, scenario: "healthy", scenarioSetAt: Date.now(), scenarioExpiresAt: undefined };
+      meta = { ...meta, scenario: "healthy", scenarioSetAt: Date.now(), scenarioExpiresAt: undefined, scenarioRegion: "all" };
       await this.ctx.storage.put("meta", meta);
     }
     return meta;
@@ -57,14 +58,16 @@ export class WorkspaceStore extends DurableObject<Env> {
       scenario: meta.scenario,
       scenarioSetAt: meta.scenarioSetAt,
       scenarioExpiresAt: meta.scenarioExpiresAt,
+      scenarioRegion: meta.scenarioRegion ?? "all",
       orderCount: count,
     };
   }
 
-  async update(workspace: string, patch: { profile?: ProfileId; scenario?: ScenarioId }): Promise<WorkspaceSnapshot> {
+  async update(workspace: string, patch: { profile?: ProfileId; scenario?: ScenarioId; region?: ScenarioRegion }): Promise<WorkspaceSnapshot> {
     const meta = await this.meta(workspace);
     const next: Meta = { ...meta };
     if (patch.profile) next.profile = patch.profile;
+    if (patch.region) next.scenarioRegion = patch.region;
     if (patch.scenario) {
       next.scenario = patch.scenario;
       next.scenarioSetAt = Date.now();
@@ -78,7 +81,7 @@ export class WorkspaceStore extends DurableObject<Env> {
     const meta = await this.meta(workspace);
     const keys = [...(await this.ctx.storage.list({ prefix: "order:" })).keys()];
     for (let i = 0; i < keys.length; i += 128) await this.ctx.storage.delete(keys.slice(i, i + 128));
-    await this.ctx.storage.put("meta", { ...meta, scenario: "healthy", scenarioSetAt: Date.now(), scenarioExpiresAt: undefined });
+    await this.ctx.storage.put("meta", { ...meta, scenario: "healthy", scenarioSetAt: Date.now(), scenarioExpiresAt: undefined, scenarioRegion: "all" });
     this.samples = {};
     return this.snapshot(workspace);
   }

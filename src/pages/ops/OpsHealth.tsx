@@ -10,6 +10,7 @@ import { useConfig } from "../../state/AppContext";
 interface Health {
   status: "healthy" | "degraded" | "critical";
   scenario: ScenarioId;
+  scenarioRegion?: "all" | "uk" | "non_uk";
   services: ServiceHealth[];
   orders: { total: number; completed: number; inProgress: number; stalled: number };
   checkedAt: number;
@@ -53,7 +54,7 @@ const IMPACT: Record<ScenarioId, { title: string; body: string; steps: [string, 
 
 export default function OpsHealth() {
   const config = useConfig();
-  const res = useAsync((signal) => fetchHealth(signal, sessionHeaders()), [config.workspace, config.scenario]);
+  const res = useAsync((signal) => fetchHealth(signal, sessionHeaders()), [config.workspace, config.scenario, config.workspaceState.scenario, config.workspaceState.scenarioRegion]);
 
   useEffect(() => {
     const t = setInterval(() => void res.reload(true), 5000);
@@ -126,6 +127,8 @@ export default function OpsHealth() {
             <p className="eyebrow mb-2">Customer Impact Correlation</p>
             <h2 id="impact-heading" className="text-xl font-semibold">
               {impact.title}
+              {h.scenario !== "healthy" && h.scenarioRegion === "uk" && <span className="ml-2 rounded-full bg-amber-50 px-2.5 py-0.5 align-middle text-xs font-semibold text-amber-800 ring-1 ring-amber-200" data-testid="impact-region">UK visitors only</span>}
+              {h.scenario !== "healthy" && h.scenarioRegion === "non_uk" && <span className="ml-2 rounded-full bg-amber-50 px-2.5 py-0.5 align-middle text-xs font-semibold text-amber-800 ring-1 ring-amber-200" data-testid="impact-region">Outside the UK only</span>}
             </h2>
             <p className="mt-2 max-w-3xl text-sm text-slate-600">{impact.body}</p>
             <ol className="mt-6 grid gap-2 sm:grid-cols-5">

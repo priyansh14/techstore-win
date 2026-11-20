@@ -10,6 +10,7 @@ import type {
   ProfileDefinition,
   ProfileId,
   ScenarioId,
+  ScenarioRegion,
   ServiceHealth,
   StoredOrder,
   Totals,
@@ -386,7 +387,9 @@ export function computeHealth(
   orders: OrderView[],
   samples: Partial<Record<string, ServiceSample>>,
   now = Date.now(),
+  region: ScenarioRegion = "all",
 ): ServiceHealth[] {
+  const scope = region === "uk" ? " Affects UK visitors only." : region === "non_uk" ? " Affects visitors outside the UK only." : "";
   const jitter = (id: string, base: number, spread: number) => base + (hash(`${id}:${Math.floor(now / 5000)}`) % spread);
   const stalled = orders.filter((o) => o.status === "stalled");
   return SERVICES.map((svc) => {
@@ -430,6 +433,7 @@ export function computeHealth(
       status = "Degraded";
       note = "New orders will halt at an inventory or provisioning milestone.";
     }
+    if (scope && status !== "Healthy" && scenario !== "healthy") note += scope;
     return { id: svc.id, name: svc.name, description: svc.description, status, p95Ms: Math.round(p95Ms), errorRate, requests: s?.count ?? 0, note };
   });
 }
