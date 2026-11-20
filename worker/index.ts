@@ -409,9 +409,9 @@ function withNel(res: Response, env: Env): Response {
 
 async function route(req: Request, env: Env, exec: ExecutionContext): Promise<Response> {
   const url = new URL(req.url);
-  if (url.pathname === "/sdk/nexora-analytics.js") return analyticsScript(url);
   const vendor = matchVendor(url);
   if (vendor) return handleVendor(req, vendor.vendor, vendor.path, (v) => vendorOrigin(url, v));
+  if (url.pathname === "/sdk/nexora-analytics.js") return analyticsScript(url);
   // Vendor hosts serve only their own endpoints; anything else goes to the storefront.
   if (url.hostname.endsWith(`.${PROD_DOMAIN}`) && url.hostname !== `www.${PROD_DOMAIN}`) return Response.redirect(`https://${PROD_DOMAIN}/`, 302);
   if (url.pathname.startsWith("/api/")) {
