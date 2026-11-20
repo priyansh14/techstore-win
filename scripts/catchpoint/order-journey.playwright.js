@@ -10,6 +10,11 @@
  *   slow_experience   steps 1-4 slow (catalog/availability 2.8-3.8 s), journey still passes
  *   checkout_failure  fails at step 9 (payment gateway HTTP 502)
  *   stalled_order     fails at step 10 (HTTP 200, order blocked by a backend business rule)
+ * A scenario scoped to "UK visitors only" fails only on UK nodes; other nodes pass in the same run.
+ *
+ * Waterfall: besides techstore.win, pages load fonts, product images (cdn.techstore.win) and
+ * simulated vendors (tags., analytics., chat., reviews., ads.techstore.win). settle() lets each
+ * page-load step finish its network activity so late requests are attributed to the right step.
  *
  * Catchpoint documents startStep(), not endStep(): the next startStep sets the next boundary.
  * Unnumbered checks inside a step do not create extra steps.
