@@ -17,7 +17,15 @@
          to window.RProfiler automatically once the snippet has loaded.
          ================================================================ -->
     <!-- RUM:BEGIN -->
-    <script defer src="https://g.3gl.net/jp/16084/latest/InitialLoadScript.js"></script>
+    <!-- Loads only on the production site, so local runs and previews never send RUM data. -->
+    <script>
+      if (/(^|\.)techstore\.win$/.test(location.hostname)) {
+        var cp = document.createElement("script");
+        cp.defer = true;
+        cp.src = "https://g.3gl.net/jp/16084/latest/InitialLoadScript.js";
+        document.head.appendChild(cp);
+      }
+    </script>
     <!-- Send the RUM beacon on pagehide instead of unload/beforeunload (more reliable on mobile and bfcache). -->
     <script>
       if (window.RProfiler) {
