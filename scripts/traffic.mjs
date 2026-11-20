@@ -10,6 +10,7 @@
  *   node scripts/traffic.mjs                       # ~1000 page views, 5 parallel browsers
  *   node scripts/traffic.mjs --pageviews 300 --concurrency 3
  *   node scripts/traffic.mjs --trickle 20          # keep going: ~20 sessions every 15 minutes
+ *   node scripts/traffic.mjs --pin-dns             # bypass a stale local DNS cache for *.techstore.win
  *   node scripts/traffic.mjs --journey buy --scenario stalled_order --pageviews 10   # one specific case
  */
 import { chromium, devices } from "@playwright/test";
@@ -351,7 +352,8 @@ async function burst(browser, { pageviews, sessions }) {
   await Promise.all(Array.from({ length: CONCURRENCY }, worker));
 }
 
-const browser = await chromium.launch();
+// --pin-dns: resolve *.techstore.win via Cloudflare's edge IP, bypassing a stale local DNS cache.
+const browser = await chromium.launch(args["pin-dns"] ? { args: ["--host-resolver-rules=MAP *.techstore.win 104.21.96.65"] } : {});
 console.log(`Simulating shoppers on ${BASE} (workspace=${WORKSPACE}, concurrency=${CONCURRENCY})`);
 await burst(browser, { pageviews: TARGET });
 report("Burst complete: ");
