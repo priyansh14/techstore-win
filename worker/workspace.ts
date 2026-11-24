@@ -23,6 +23,8 @@ interface Meta {
  */
 export class WorkspaceStore extends DurableObject<Env> {
   private samples: Record<string, ServiceSample> = {};
+  /** Cached order count, so a snapshot doesn't list (and bill a read for) every stored order. */
+  private orderCount: number | undefined;
 
   private async meta(workspace: string): Promise<Meta> {
     let meta = await this.ctx.storage.get<Meta>("meta");
@@ -39,6 +41,7 @@ export class WorkspaceStore extends DurableObject<Env> {
   }
 
   private async putOrders(orders: StoredOrder[]) {
+    this.orderCount = undefined;
     const entries: Record<string, StoredOrder> = {};
     for (const o of orders) entries[`order:${o.id}`] = o;
     await this.ctx.storage.put(entries);
@@ -51,7 +54,8 @@ export class WorkspaceStore extends DurableObject<Env> {
 
   async snapshot(workspace: string): Promise<WorkspaceSnapshot> {
     const meta = await this.meta(workspace);
-    const count = (await this.ctx.storage.list({ prefix: "order:" })).size;
+    this.orderCount ??= (await this.ctx.storage.list({ prefix: "order:" })).size;
+    const count = this.orderCount;
     return {
       workspace,
       profile: meta.profile,
@@ -78,6 +82,7 @@ export class WorkspaceStore extends DurableObject<Env> {
   }
 
   async reset(workspace: string): Promise<WorkspaceSnapshot> {
+    this.orderCount = undefined;
     const meta = await this.meta(workspace);
     const keys = [...(await this.ctx.storage.list({ prefix: "order:" })).keys()];
     for (let i = 0; i < keys.length; i += 128) await this.ctx.storage.delete(keys.slice(i, i + 128));
@@ -103,6 +108,7 @@ export class WorkspaceStore extends DurableObject<Env> {
   }
 
   async createOrder(workspace: string, profile: ProfileId, scenario: ScenarioId, input: CheckoutInput): Promise<StoredOrder> {
+    this.orderCount = undefined;
     await this.meta(workspace);
     const existing = await this.allOrders();
     const order = buildOrder(newOrderId(new Set(existing.map((o) => o.id))), workspace, profile, scenario, input);
@@ -123,12 +129,15 @@ export class WorkspaceStore extends DurableObject<Env> {
     return { order: recovered, retried: true };
   }
 
-  async track(service: string, ms: number, ok: boolean): Promise<void> {
-    const s = (this.samples[service] ??= { count: 0, errors: 0, latencies: [] });
-    s.count++;
-    if (!ok) s.errors++;
-    s.latencies.push(ms);
-    if (s.latencies.length > SAMPLE_WINDOW) s.latencies.shift();
+  /** Records one request against several services in a single Durable Object call. */
+  async track(samples: { service: string; ms: number; ok: boolean }[]): Promise<void> {
+    for (const { service, ms, ok } of samples) {
+      const s = (this.samples[service] ??= { count: 0, errors: 0, latencies: [] });
+      s.count++;
+      if (!ok) s.errors++;
+      s.latencies.push(ms);
+      if (s.latencies.length > SAMPLE_WINDOW) s.latencies.shift();
+    }
   }
 
   async getSamples(): Promise<Record<string, ServiceSample>> {

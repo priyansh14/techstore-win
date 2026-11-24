@@ -139,9 +139,11 @@ async function handleApi(req: Request, env: Env, exec: ExecutionContext): Promis
 
   const { snapshot, scenario, profile: profileId } = await effective(ctx);
   const profile = PROFILES[profileId];
-  const track = (service: ServiceId, res: Response) => {
-    exec.waitUntil(ctx.store.track(service, Date.now() - ctx.started, res.status < 500));
-    exec.waitUntil(ctx.store.track("storefront-edge", Date.now() - ctx.started, res.status < 500));
+  // One Durable Object call per API request records the service, the edge and any extras.
+  const track = (service: ServiceId, res: Response, extra: { service: ServiceId; ms: number; ok: boolean }[] = []) => {
+    const ms = Date.now() - ctx.started;
+    const ok = res.status < 500;
+    exec.waitUntil(ctx.store.track([{ service, ms, ok }, { service: "storefront-edge", ms, ok }, ...extra]));
     return res;
   };
   const slow = scenario === "slow_experience";
@@ -239,15 +241,15 @@ async function handleApi(req: Request, env: Env, exec: ExecutionContext): Promis
         { error: { code: "PAYMENT_GATEWAY_TIMEOUT", message: "Upstream card processor timed out after 5000ms", retryable: true } },
         502,
       );
-      exec.waitUntil(ctx.store.track("order-orchestrator", Date.now() - ctx.started, false));
-      return track("payment-gateway", res);
+      return track("payment-gateway", res, [{ service: "order-orchestrator", ms: Date.now() - ctx.started, ok: false }]);
     }
     await work(ctx, "payment", "Payment authorization", rand(180, 420));
     const t = Date.now();
     const order = await ctx.store.createOrder(ctx.workspace, profileId, scenario, input);
     ctx.timings.push(`orchestrator;desc="Order orchestration";dur=${Date.now() - t}`);
-    exec.waitUntil(ctx.store.track("payment-gateway", 300, true));
-    return track("order-orchestrator", respond(ctx, "order-orchestrator", scenario, { order: publicView(materialize(order)) }, 200));
+    return track("order-orchestrator", respond(ctx, "order-orchestrator", scenario, { order: publicView(materialize(order)) }, 200), [
+      { service: "payment-gateway", ms: 300, ok: true },
+    ]);
   }
 
   // GET /api/orders
