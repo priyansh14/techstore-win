@@ -147,6 +147,8 @@ async function handleApi(req: Request, env: Env, exec: ExecutionContext): Promis
     return res;
   };
   const slow = scenario === "slow_experience";
+  // third_party_slow: catalog and availability wait on the internal Analytics service (downstream dependency).
+  const analyticsDown = scenario === "third_party_slow";
 
   // GET /api/promotions
   if (path === "/api/promotions" && req.method === "GET") {
@@ -191,6 +193,7 @@ async function handleApi(req: Request, env: Env, exec: ExecutionContext): Promis
 
   // GET /api/catalog
   if (path === "/api/catalog" && req.method === "GET") {
+    if (analyticsDown) await work(ctx, "analytics-svc", "Analytics service (downstream dependency)", rand(3000, 3800));
     await work(ctx, "catalog", "Catalog & pricing lookup", slow ? rand(2800, 3800) : rand(40, 110));
     const slug = url.searchParams.get("slug");
     const category = url.searchParams.get("category");
@@ -209,6 +212,7 @@ async function handleApi(req: Request, env: Env, exec: ExecutionContext): Promis
   // GET /api/availability?postcode=
   if (path === "/api/availability" && req.method === "GET") {
     const postcode = url.searchParams.get("postcode") ?? "";
+    if (analyticsDown) await work(ctx, "analytics-svc", "Analytics service (downstream dependency)", rand(3000, 3800));
     await work(ctx, "availability", "Coverage & inventory check", slow ? rand(2800, 3800) : rand(45, 120));
     if (!isValidPostcode(postcode)) {
       return track(
@@ -383,6 +387,12 @@ async function serveApp(req: Request, env: Env): Promise<Response> {
     // State unavailable: serve the page without scenario injection.
   }
   const headers = new Headers(res.headers);
+  if (scenario === "third_party_slow") {
+    const ms = Math.round(3600 + Math.random() * 800);
+    await sleep(ms);
+    headers.set("server-timing", `analytics-svc;desc="Analytics service (downstream dependency)";dur=${ms}`);
+    headers.set("x-nexora-dependency", "analytics-svc degraded");
+  }
   headers.set("cache-control", "no-cache");
   headers.set("x-nexora-scenario", scenario);
   headers.set("x-workspace-id", ctx.workspace);
@@ -398,9 +408,6 @@ async function serveApp(req: Request, env: Env): Promise<Response> {
       element(el) {
         if (scenario === "slow_experience") {
           el.append(`<script async src="${sdkOrigin}/sdk/nexora-analytics.js?delay=2500" id="nx-analytics" data-testid="third-party-analytics"></script>`, { html: true });
-        } else if (scenario === "third_party_slow") {
-          // Render-blocking vendor script: the page waits on the third party's slow first byte.
-          el.append(`<script src="${sdkOrigin}/sdk/nexora-analytics.js?delay=6000" id="nx-analytics" data-testid="third-party-analytics"></script>`, { html: true });
         }
       },
     })

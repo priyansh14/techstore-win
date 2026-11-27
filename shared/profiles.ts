@@ -280,10 +280,10 @@ export const SCENARIOS: ScenarioDefinition[] = [
   },
   {
     id: "third_party_slow",
-    label: "Third-Party Slow",
-    summary: "A render-blocking third-party analytics SDK takes about 6 seconds to respond; our own APIs stay fast.",
-    customerExperience: "Pages stay blank for several seconds while the browser waits on the analytics vendor. Everything else is fast and the journey still completes.",
-    telemetrySignals: ["analytics.techstore.win SDK ~6 s wait (TTFB)", "Higher page load / doc complete", "Own APIs normal", "DNS and connect normal"],
+    label: "Analytics Service Degraded",
+    summary: "The internal Analytics service (a downstream dependency) responds slowly, so pages and catalog/availability APIs wait on it.",
+    customerExperience: "Every page and product/availability lookup takes 3-4 seconds longer. The journey still completes.",
+    telemetrySignals: ["Server-Timing analytics-svc ~4 s", "Higher response, wait and doc complete", "DNS and connect normal", "Root cause: downstream Analytics service"],
   },
   {
     id: "checkout_failure",
