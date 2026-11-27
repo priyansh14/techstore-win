@@ -40,6 +40,11 @@ const IMPACT: Record<ScenarioId, { title: string; body: string; steps: [string, 
     body: "Catalog & Pricing and Availability & Inventory are responding in 2.8–3.8 s, and a third-party analytics script adds ~2.5 s to page load. Customers wait on product listings and availability checks. Expect higher page-load and step timings in RUM and synthetic data, with no errors.",
     steps: [["Browse", "slow"], ["Availability", "slow"], ["Basket", "ok"], ["Checkout", "ok"], ["Fulfilment", "ok"]],
   },
+  third_party_slow: {
+    title: "Pages blocked by a slow third party",
+    body: "The third-party analytics SDK (analytics.techstore.win) is taking ~6 s to send its first byte, and it is render-blocking. Our own APIs are fast, but every full page load waits on the vendor. Expect higher page-load timings in RUM and synthetic data, with the delay isolated to the vendor request in the waterfall.",
+    steps: [["Browse", "slow"], ["Availability", "slow"], ["Basket", "ok"], ["Checkout", "ok"], ["Fulfilment", "ok"]],
+  },
   checkout_failure: {
     title: "Customers cannot complete checkout",
     body: "The Payment Gateway Adapter is timing out against the upstream card processor after 5000 ms and returning HTTP 502. Customers reach checkout and then see a payment error, so revenue is lost at the final funnel step.",

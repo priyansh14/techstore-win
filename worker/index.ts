@@ -398,6 +398,9 @@ async function serveApp(req: Request, env: Env): Promise<Response> {
       element(el) {
         if (scenario === "slow_experience") {
           el.append(`<script async src="${sdkOrigin}/sdk/nexora-analytics.js?delay=2500" id="nx-analytics" data-testid="third-party-analytics"></script>`, { html: true });
+        } else if (scenario === "third_party_slow") {
+          // Render-blocking vendor script: the page waits on the third party's slow first byte.
+          el.append(`<script src="${sdkOrigin}/sdk/nexora-analytics.js?delay=6000" id="nx-analytics" data-testid="third-party-analytics"></script>`, { html: true });
         }
       },
     })

@@ -1,5 +1,5 @@
 export type ProfileId = "telecom" | "retail";
-export type ScenarioId = "healthy" | "slow_experience" | "checkout_failure" | "stalled_order";
+export type ScenarioId = "healthy" | "slow_experience" | "checkout_failure" | "stalled_order" | "third_party_slow";
 /** Which visitors a workspace scenario applies to, by Cloudflare-detected country. */
 export type ScenarioRegion = "all" | "uk" | "non_uk";
 export type ServiceId =

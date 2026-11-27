@@ -279,6 +279,13 @@ export const SCENARIOS: ScenarioDefinition[] = [
     telemetrySignals: ["Catalog & availability APIs 2.8–3.8 s", "Third-party script +2.5 s in waterfall", "Higher page load and step timings", "Catalog & Availability Degraded"],
   },
   {
+    id: "third_party_slow",
+    label: "Third-Party Slow",
+    summary: "A render-blocking third-party analytics SDK takes about 6 seconds to respond; our own APIs stay fast.",
+    customerExperience: "Pages stay blank for several seconds while the browser waits on the analytics vendor. Everything else is fast and the journey still completes.",
+    telemetrySignals: ["analytics.techstore.win SDK ~6 s wait (TTFB)", "Higher page load / doc complete", "Own APIs normal", "DNS and connect normal"],
+  },
+  {
     id: "checkout_failure",
     label: "Checkout Failure",
     summary: "Payment authorization times out with HTTP 502.",

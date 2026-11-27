@@ -157,8 +157,8 @@ describe("order state machine", () => {
 });
 
 describe("scenario engine & health", () => {
-  it("defines the four scenarios", () => {
-    expect(SCENARIOS.map((s) => s.id)).toEqual(["healthy", "slow_experience", "checkout_failure", "stalled_order"]);
+  it("defines the five scenarios", () => {
+    expect(SCENARIOS.map((s) => s.id)).toEqual(["healthy", "slow_experience", "third_party_slow", "checkout_failure", "stalled_order"]);
   });
 
   it("seeds completed, in-progress and stalled demo orders including NX-YYYY-4821", () => {

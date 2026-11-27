@@ -279,8 +279,13 @@ const JOURNEY_MIX = [
   [2, "notFound"],
 ];
 
+// --mix "bounce:60,browse:20,buy:5" overrides the journey weights for this run.
+const MIX = typeof args.mix === "string"
+  ? args.mix.split(",").map((p) => p.split(":")).map(([j, w]) => [Number(w), j.trim()]).filter(([w, j]) => w > 0 && JOURNEY_MIX.some(([, k]) => k === j))
+  : JOURNEY_MIX;
+
 function makeSession() {
-  const journey = args.journey ?? weighted(JOURNEY_MIX);
+  const journey = args.journey ?? weighted(MIX);
   // Scenario mix: mostly healthy. Faults are pinned per session only (never changes the shared workspace).
   const scenario = args.scenario ??
     (journey === "buy"
